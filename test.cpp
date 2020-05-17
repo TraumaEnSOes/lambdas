@@ -54,12 +54,18 @@ public:
   void close( ) { doClose( _data, nullptr ); }
   void close( std::function< void( Wrapper ) > cb ) {
     if( cb ) {
-      auto lambda = [cb]( CStruct *cst ) -> void {
-        cb( Wrapper( cst ) );
-      };
+      void (**compatible)( Wrapper ) = cb.target< void(*)( Wrapper ) >( );
 
-      ( *_wrapper )->callback = lambda;
-      doClose( _data, Callback );
+      if( compatible ) {
+        doClose( _data, reinterpret_cast< void(*)( CStruct * ) >( *compatible ) );
+      } else {
+        auto lambda = [cb]( CStruct *cst ) -> void {
+          cb( Wrapper( cst ) );
+        };
+
+        ( *_wrapper )->callback = lambda;
+        doClose( _data, Callback );
+      }
     } else {
       doClose( _data, nullptr );
     }

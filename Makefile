@@ -3,8 +3,8 @@ LDFLAGS=
 LOADLIBES=
 LDLIBS=
 CPPFLAGS=
-CXX=clang++
-LD=clang++
+CXX=g++
+LD=g++
 
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $^
@@ -18,5 +18,5 @@ test: test.cpp
 .PHONY: clean
 clean:
 	rm -f *.o
-	rm -f test1
+	rm -f test
 
