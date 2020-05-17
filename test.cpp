@@ -2,17 +2,17 @@
 #include <functional>
 #include <iostream>
 
-struct CStruct {
+struct LegacyStruct {
   void *userData;
   // Datos PRIVADOS
-  void ( *onClose )( CStruct * );
+  void ( *onClose )( LegacyStruct * );
 };
 
-extern "C" void doClose( CStruct *st, void (*cb)( struct CStruct * ) ) {
+extern "C" void legacyAction( LegacyStruct *st, void (*cb)( struct LegacyStruct * ) ) {
   st->onClose = cb;
 }
 
-extern "C" void reallyClose( CStruct *st ) {
+extern "C" void reallyClose( LegacyStruct *st ) {
   if( st->onClose ) { st->onClose( st ); }
 }
 
@@ -20,28 +20,28 @@ namespace internal {
 
 struct Wrapper {
   unsigned refs;
-  std::function< void( CStruct * ) > callback;
+  std::function< void( LegacyStruct * ) > callback;
 };
 
 } // namespace internal.
 
 class Wrapper {
   union {
-    CStruct *_data;
+    LegacyStruct *_data;
     internal::Wrapper **_wrapper;
   };
 
-  static void Callback( CStruct *cst ) {
+  static void Callback( LegacyStruct *cst ) {
     auto &priv = **reinterpret_cast< internal::Wrapper ** >( cst );
 
     if( priv.callback ) { priv.callback( cst ); }
   }
 
 protected:
-  Wrapper( void *ptr ) : _data( static_cast< CStruct * >( ptr ) ) { }
+  Wrapper( void *ptr ) : _data( static_cast< LegacyStruct * >( ptr ) ) { }
 
   void setData( void *ptr ) {
-    _data = static_cast< CStruct * >( ptr );
+    _data = static_cast< LegacyStruct * >( ptr );
   }
 
 public:
@@ -51,42 +51,42 @@ public:
   const void *target( ) const { return _data; }
   const void *ctarget( ) const { return _data; }
 
-  void close( ) { doClose( _data, nullptr ); }
+  void close( ) { legacyAction( _data, nullptr ); }
   void close( std::function< void( Wrapper ) > cb ) {
     if( cb ) {
       void (**compatible)( Wrapper ) = cb.target< void(*)( Wrapper ) >( );
 
       if( compatible ) {
-        doClose( _data, reinterpret_cast< void(*)( CStruct * ) >( *compatible ) );
+        legacyAction( _data, reinterpret_cast< void(*)( LegacyStruct * ) >( *compatible ) );
       } else {
-        auto lambda = [cb]( CStruct *cst ) -> void {
+        auto lambda = [cb]( LegacyStruct *cst ) -> void {
           cb( Wrapper( cst ) );
         };
 
         ( *_wrapper )->callback = lambda;
-        doClose( _data, Callback );
+        legacyAction( _data, Callback );
       }
     } else {
-      doClose( _data, nullptr );
+      legacyAction( _data, nullptr );
     }
   }
   template< typename CLASS > void close( CLASS *self, void ( CLASS::*cb )( Wrapper ) ) {
-    auto lambda = [self,cb]( CStruct *cst ) -> void {
+    auto lambda = [self,cb]( LegacyStruct *cst ) -> void {
       ( self->*cb )( Wrapper( cst ) );
     };
 
     ( *_wrapper )->callback = lambda;
 
-    doClose( _data, Callback );
+    legacyAction( _data, Callback );
   }
 };
 
 struct Data : public Wrapper {
   Data( ) : Wrapper( ) {
-    char *tmp = new char[sizeof( CStruct ) + sizeof( internal::Wrapper )];
+    char *tmp = new char[sizeof( LegacyStruct ) + sizeof( internal::Wrapper )];
 
-    std::fill_n( tmp, sizeof( CStruct ) + sizeof( internal::Wrapper ), 0 );
-    reinterpret_cast< CStruct * >( tmp )->userData = tmp + sizeof( CStruct );
+    std::fill_n( tmp, sizeof( LegacyStruct ) + sizeof( internal::Wrapper ), 0 );
+    reinterpret_cast< LegacyStruct * >( tmp )->userData = tmp + sizeof( LegacyStruct );
     setData( tmp );
   }
 };
@@ -120,9 +120,9 @@ int main( ) {
   data2.close( &p, &Printer::print );
   data3.close( Close3 );
 
-  reallyClose( reinterpret_cast< CStruct * >( data1.target( ) ) );
-  reallyClose( reinterpret_cast< CStruct * >( data2.target( ) ) );
-  reallyClose( reinterpret_cast< CStruct * >( data3.target( ) ) );
+  reallyClose( reinterpret_cast< LegacyStruct * >( data1.target( ) ) );
+  reallyClose( reinterpret_cast< LegacyStruct * >( data2.target( ) ) );
+  reallyClose( reinterpret_cast< LegacyStruct * >( data3.target( ) ) );
 
   return 0;
 }
