@@ -47,15 +47,17 @@ protected:
   template< typename T, typename C, typename RESULT = void (*)( C * ) >
   static RESULT makeWrapper( void (*globalCB)( C * ), std::function< void( T ) > &user, std::function< void( C * ) > *storage ) {
     // La std::function< > está vacía.
-    if( !user ) { return nullptr; }
+    if( !user ) {
+      std::cout << "std::function< > vacía.\n";
+      return nullptr;
+    }
 
     // Comprobamos si es compatible con una función-no-miembro.
     {
       void (**compatible)( T ) = user.template target< void(*)( T ) >( );
       if( compatible ) {
-        // return reinterpret_cast< RESULT >( *compatible );
-        // return (RESULT)( *compatible );
-        return reinterpret_cast< void (*)( C * ) >( *compatible );
+        std::cout << "Compatible con función-no-miembro.\n";
+        return reinterpret_cast< RESULT >( *compatible );
       }
     }
 
@@ -64,6 +66,18 @@ protected:
       user( T( ptr ) );
     };
 
+    std::cout << "Lambda adaptadora.\n";
+    *storage = lambda;
+    return globalCB;
+  }
+
+  template< typename T, typename C, typename CLASS, typename RESULT = void (*)( C * ) >
+  RESULT makeMemberWrapper(  void (*globalCB)( C * ), CLASS *self, void ( CLASS::*cb )( T ), std::function< void( C * ) > *storage ) {
+    auto lambda = [self,cb]( C *cst ) -> void {
+      ( self->*cb )( T( cst ) );
+    };
+    
+    std::cout << "Adaptador para función-miembro.\n";
     *storage = lambda;
     return globalCB;
   }
@@ -79,34 +93,10 @@ public:
   
   void close( std::function< void( Wrapper ) > cb ) {
     legacyAction( _data, makeWrapper( Callback, cb, &( ( *_wrapper )->callback ) ) );
-#if 0
-    if( cb ) {
-      // void (**compatible)( Wrapper ) = cb.target< void(*)( Wrapper ) >( );
-
-      if( compatible ) {
-        legacyAction( _data, reinterpret_cast< void(*)( LegacyStruct * ) >( *compatible ) );
-      } else {
-        auto lambda = [cb]( LegacyStruct *cst ) -> void {
-          cb( Wrapper( cst ) );
-        };
-
-        ( *_wrapper )->callback = lambda;
-        legacyAction( _data, Callback );
-      }
-    } else {
-      legacyAction( _data, nullptr );
-    }
-#endif
   }
 
   template< typename CLASS > void close( CLASS *self, void ( CLASS::*cb )( Wrapper ) ) {
-    auto lambda = [self,cb]( LegacyStruct *cst ) -> void {
-      ( self->*cb )( Wrapper( cst ) );
-    };
-
-    ( *_wrapper )->callback = lambda;
-
-    legacyAction( _data, Callback );
+    legacyAction( _data, makeMemberWrapper( Callback, self, cb, &( ( *_wrapper )->callback ) ) );
   }
 };
 
