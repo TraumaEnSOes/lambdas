@@ -44,6 +44,30 @@ protected:
     _data = static_cast< LegacyStruct * >( ptr );
   }
 
+  template< typename T, typename C, typename RESULT = void (*)( C * ) >
+  static RESULT makeWrapper( void (*globalCB)( C * ), std::function< void( T ) > &user, std::function< void( C * ) > *storage ) {
+    // La std::function< > está vacía.
+    if( !user ) { return nullptr; }
+
+    // Comprobamos si es compatible con una función-no-miembro.
+    {
+      void (**compatible)( T ) = user.template target< void(*)( T ) >( );
+      if( compatible ) {
+        // return reinterpret_cast< RESULT >( *compatible );
+        // return (RESULT)( *compatible );
+        return reinterpret_cast< void (*)( C * ) >( *compatible );
+      }
+    }
+
+    // Hay que usar una lambda para adaptar.
+    auto lambda = [user]( C *ptr ) {
+      user( T( ptr ) );
+    };
+
+    *storage = lambda;
+    return globalCB;
+  }
+
 public:
   Wrapper( ) : _data( nullptr ) { }
 
@@ -52,9 +76,12 @@ public:
   const void *ctarget( ) const { return _data; }
 
   void close( ) { legacyAction( _data, nullptr ); }
+  
   void close( std::function< void( Wrapper ) > cb ) {
+    legacyAction( _data, makeWrapper( Callback, cb, &( ( *_wrapper )->callback ) ) );
+#if 0
     if( cb ) {
-      void (**compatible)( Wrapper ) = cb.target< void(*)( Wrapper ) >( );
+      // void (**compatible)( Wrapper ) = cb.target< void(*)( Wrapper ) >( );
 
       if( compatible ) {
         legacyAction( _data, reinterpret_cast< void(*)( LegacyStruct * ) >( *compatible ) );
@@ -69,7 +96,9 @@ public:
     } else {
       legacyAction( _data, nullptr );
     }
+#endif
   }
+
   template< typename CLASS > void close( CLASS *self, void ( CLASS::*cb )( Wrapper ) ) {
     auto lambda = [self,cb]( LegacyStruct *cst ) -> void {
       ( self->*cb )( Wrapper( cst ) );

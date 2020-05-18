@@ -13,7 +13,7 @@ LD=g++
 all: test
 
 test: test.cpp
-	$(LD) $(LDFLAGS) -o $@ $^ $(LOADLIBES) $(LDLIBS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^
 
 .PHONY: clean
 clean:
